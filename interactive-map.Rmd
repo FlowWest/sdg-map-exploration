@@ -1,0 +1,170 @@
+---
+title: "South Delta Gates - channel exploration"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: readable
+    #orientation: columns
+    vertical_layout: fill
+    horizontal_layout: fill
+  font_family: "Roboto"
+  google_fonts: true
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(leaflet)
+library(sf)
+```
+
+```{r include = FALSE}
+channels <- sf::read_sf('data-raw/fc2024.01_chan/FC2024.01_channels_centerlines.shp')
+channels_with_numbers <- read_csv('data-raw/channel_names_from_h5.csv') |> 
+  filter(distance != "length",
+         file == "./output/FPV2Mb_hydro.dss")
+#dss_hydro_output <- readRDS('data/fpv1ma_hydro_stage.RDS')
+dss_hydro_output <- readRDS('data/fpv2ma_hydro_stage.RDS')
+dss_output_baseline <- readRDS('data/h1z_hdro_stage.RDS')
+
+```
+
+## Inputs {.sidebar}
+
+```{r}
+selectInput(
+  inputId = "which_month", 
+  label = "Select Month", 
+  choices = 5:11, 
+  selected = 5
+)
+
+selectInput(
+  inputId = "which_year", 
+  label = "Select Year", 
+  choices = 2020:2023, 
+  selected = 2020
+)
+
+
+selectInput(
+  inputId = "which_stat", 
+  label = "Select Statistic", 
+  choices = c("Min", "Max", "Mean"), 
+  selected = "Mean"
+)
+
+```
+
+Column {data-width=100 data-height=100}
+-------------------------------------
+
+## Map 
+
+```{r}
+# Reactive data processing based on input
+filtered_data <- reactive({
+  req(input$which_month, input$which_year)
+
+  # Summarize hydro output
+  summarize_hydro <- function(data, month_filter, year_filter) {
+    data |> 
+      filter(lubridate::month(datetime) == month_filter,
+             lubridate::year(datetime) == year_filter) |> 
+      mutate(node = toupper(node)) |> 
+      group_by(node) |> 
+      summarise(
+        min_stage = min(value, na.rm = TRUE),
+        max_stage = max(value, na.rm = TRUE),
+        mean_stage = mean(value, na.rm = TRUE),
+        .groups = "drop"
+      )
+  }
+
+  dss_hydro_summary <- summarize_hydro(dss_hydro_output, input$which_month, input$which_year) |> 
+    mutate(scenario = "FPV2MA")
+
+  dss_hydro_summary_baseline <- summarize_hydro(dss_output_baseline, input$which_month, input$which_year) |> 
+    mutate(scenario = "baseline")
+
+  # Combine summaries
+  hydro_summary <- dss_hydro_summary_baseline |> 
+    full_join(dss_hydro_summary, by = "node") |> 
+    group_by(node) |> 
+    summarise(
+      min_diff = diff(c(min_stage.x, min_stage.y), na.rm = TRUE),
+      mean_diff = diff(c(mean_stage.x, mean_stage.y), na.rm = TRUE),
+      max_diff = diff(c(max_stage.x, max_stage.y), na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  # Merge with spatial data
+  channels |> 
+    left_join(channels_with_numbers |> rename(id = chan_no), by = "id") |> 
+    left_join(hydro_summary |> rename(name = node), by = "name") |> 
+    st_transform(crs = 4326) |> 
+    filter(!is.na(name)) |> glimpse()
+})
+
+stat <- reactive({
+  req(input$which_stat)
+  
+  switch(input$which_stat, 
+         "Min" = 'min_diff', 
+         "Max" = 'max_diff',
+         "Mean" = 'mean_diff')
+  
+})
+
+legend_title <- reactive({
+  req(input$which_stat)
+  
+  switch(input$which_stat, 
+         "Min" = 'Min Stage Diff', 
+         "Max" = 'Max Stage Diff',
+         "Mean" = 'Mean Stage Diff')
+  
+})
+
+# Render Leaflet map
+output$map <- renderLeaflet({
+  req(filtered_data())
+
+  channels_merge <- filtered_data()
+
+  # Define color palette
+  palette <- colorNumeric(
+    palette = "plasma",
+    domain = channels_merge[[stat()]]
+  )
+
+  leaflet() |> 
+    addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+             attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>') |> 
+    addPolylines(
+      data = channels_merge,
+      color = ~palette(get(stat())),
+      popup = ~paste0(
+        "ID: ", id, "<br>",
+        "Name: ", name, "<br>",
+        legend_title()," :", round(get(stat()), 1), "<br>",
+        "Scenario: ", "fpv2ma"
+      )
+    ) |> 
+    addLegend(
+      position = "bottomright",
+      pal = palette,
+      values = channels_merge[[stat()]],
+      title = legend_title(),
+      opacity = 1
+    )
+})
+
+# Map output
+leafletOutput("map", width = "100%", height = "100%")
+
+```
+
+
+
+

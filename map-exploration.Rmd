@@ -37,7 +37,9 @@ channels <- sf::read_sf('data-raw/fc2024.01_chan/FC2024.01_channels_centerlines.
 Data `output_channel` from the .h5 file 
 
 ```{r}
-channels_with_numbers <- read_csv('data-raw/channel_names_from_h5.csv') |> glimpse()
+channels_with_numbers <- read_csv('data-raw/channel_names_from_h5.csv') |> 
+  filter(distance != "length") |> 
+  glimpse()
 ```
 
 ### channel
@@ -48,15 +50,35 @@ Data `channel` from the .h5 file
 channel <- read_csv('data-raw/channel.csv') |> glimpse()
 ```
 
-### dss output - scenario
+### dss output - scenario fpv1ma
 
 ```{r}
 dss_hydro_output <- read_csv('data-raw/fpv1ma_hydro_export.csv') |> glimpse()
+
+min(dss_hydro_output$datetime)
+max(dss_hydro_output$datetime)
+
+unique(lubridate::year(dss_hydro_output$datetime))
+
+unique(dss_hydro_output$param)
+
+```
+### dss output - scenario fpv2ma
+
+```{r}
+dss_hydro_output_fpv2ma <- read_csv('data-raw/fpv2ma_hydro_export.csv') |> glimpse()
+
 ```
 ### dss output - baseline 
 
 ```{r}
 dss_output_baseline <- read_csv('data-raw/h1z_hdro_export.csv') |> glimpse()
+
+min(dss_output_baseline$datetime)
+max(dss_output_baseline$datetime)
+
+unique(lubridate::year(dss_output_baseline$datetime))
+
 ```
 
 ## Create summaries 
@@ -67,7 +89,19 @@ Create a summary of dss stage output
 
 ```{r}
 dss_hydro_summary <- dss_hydro_output |>
-  filter(param == "stage") |>
+  filter(param == "stage",
+         lubridate::month(datetime) %in% 5:11) |>
+  mutate(node = toupper(node)) |> 
+  group_by(node) |>
+  summarise(min_stage = min(value),
+            max_stage = max(value),
+            mean_stage = mean(value)) |>
+  mutate(scenario = "FPV1MA") |> 
+  glimpse()
+
+may_scenario_summary <- dss_hydro_output |>
+  filter(param == "stage",
+         lubridate::month(datetime) == 5) |>
   mutate(node = toupper(node)) |> 
   group_by(node) |>
   summarise(min_stage = min(value),
@@ -81,7 +115,19 @@ dss_hydro_summary <- dss_hydro_output |>
 
 ```{r}
 dss_hydro_summary_baseline <- dss_output_baseline |>
-  filter(param == "stage") |>
+  filter(param == "stage",
+         lubridate::month(datetime) %in% 5:11) |>
+  mutate(node = toupper(node)) |> 
+  group_by(node) |>
+  summarise(min_stage = min(value),
+            max_stage = max(value),
+            mean_stage = mean(value)) |>
+  mutate(scenario = "baseline") |> 
+  glimpse()
+
+may_baseline <- dss_output_baseline |>
+  filter(param == "stage",
+         lubridate::month(datetime) == 5) |>
   mutate(node = toupper(node)) |> 
   group_by(node) |>
   summarise(min_stage = min(value),
@@ -102,10 +148,17 @@ hydro_summary <- dss_hydro_summary_baseline |>
             .groups = "drop") |> 
   glimpse()
 
+may_hydro_summary <- may_scenario_summary |> 
+  full_join(may_baseline) |>
+  group_by(node) |> 
+  # NOTE: scenario - baseline diff
+  summarise(min_diff = diff(min_stage),
+            mean_diff = diff(mean_stage),
+            max_diff = diff(max_stage),
+            .groups = "drop") |> 
+  glimpse()
+
 ```
-
-
-
 ## Join files 
 
 Merge with channels spatial layer 
@@ -122,13 +175,24 @@ channels_merge <- channels |>
   filter(!is.na(name)) |>
   glimpse()
 
+may_channels_merge <- channels |>
+  left_join(channels_with_numbers |>
+              rename(id = chan_no) |>
+              filter(variable == "stage") |>
+              filter(file == "./output/FPV2Mb_hydro.dss")) |>
+  sf::st_transform(crs = 4326) |>
+  left_join(may_hydro_summary |> rename(name = node)) |>
+  # left_join(dss_hydro_output |> rename(name = node)) |>
+  filter(!is.na(name)) |>
+  glimpse()
+
 ```
 
 ## Visuals
 
 ```{r}
 palette <- colorNumeric(
-  palette = "viridis",
+  palette = "plasma",
   domain = channels_merge$min_diff
 )
 
@@ -148,6 +212,36 @@ leaflet() |>
     position = "bottomright",
     pal = palette,
     values = channels_merge$min_diff,
+    title = "Min Stage Diff",
+    opacity = 1
+  )
+
+```
+
+### May Visual 
+
+```{r}
+palette <- colorNumeric(
+  palette = "magma",
+  domain = may_channels_merge$min_diff
+)
+
+leaflet() |>
+  addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+           attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>') |>
+  addPolylines(
+    data = may_channels_merge ,
+    color = ~palette(min_diff),
+    popup = ~paste0(
+      "id = ", id, "<br>",
+      "name = ", name, "<br>",
+      "min stage difference = ", round(min_diff, 1)
+    )
+  ) |>
+  addLegend(
+    position = "bottomright",
+    pal = palette,
+    values = may_channels_merge$min_diff,
     title = "Min Stage Diff",
     opacity = 1
   )

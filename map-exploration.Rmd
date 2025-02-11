@@ -1,0 +1,155 @@
+---
+title: "SDG Map Dev"
+author: "Maddee Rubenson (FlowWest)"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(leaflet)
+library(sf)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read in files 
+
+### nodes 
+
+The nodes spatial layer provided by DWR
+
+```{r}
+nodes <- sf::read_sf('data-raw/MSS_nodes/dsm2_nodes_newcs_extranodes.shp') |> glimpse()
+```
+
+### channels
+
+The channels spatial layer provided by DWR
+
+```{r}
+channels <- sf::read_sf('data-raw/fc2024.01_chan/FC2024.01_channels_centerlines.shp') |> glimpse()
+```
+
+### output_channel
+
+Data `output_channel` from the .h5 file 
+
+```{r}
+channels_with_numbers <- read_csv('data-raw/channel_names_from_h5.csv') |> glimpse()
+```
+
+### channel
+
+Data `channel` from the .h5 file 
+
+```{r}
+channel <- read_csv('data-raw/channel.csv') |> glimpse()
+```
+
+### dss output - scenario
+
+```{r}
+dss_hydro_output <- read_csv('data-raw/fpv1ma_hydro_export.csv') |> glimpse()
+```
+### dss output - baseline 
+
+```{r}
+dss_output_baseline <- read_csv('data-raw/h1z_hdro_export.csv') |> glimpse()
+```
+
+## Create summaries 
+
+### Scenario 
+
+Create a summary of dss stage output 
+
+```{r}
+dss_hydro_summary <- dss_hydro_output |>
+  filter(param == "stage") |>
+  mutate(node = toupper(node)) |> 
+  group_by(node) |>
+  summarise(min_stage = min(value),
+            max_stage = max(value),
+            mean_stage = mean(value)) |>
+  mutate(scenario = "FPV1MA") |> 
+  glimpse()
+```
+
+### Baseline
+
+```{r}
+dss_hydro_summary_baseline <- dss_output_baseline |>
+  filter(param == "stage") |>
+  mutate(node = toupper(node)) |> 
+  group_by(node) |>
+  summarise(min_stage = min(value),
+            max_stage = max(value),
+            mean_stage = mean(value)) |>
+  mutate(scenario = "baseline") |> 
+  glimpse()
+```
+
+```{r}
+hydro_summary <- dss_hydro_summary_baseline |> 
+  full_join(dss_hydro_summary) |>
+  group_by(node) |> 
+  # NOTE: scenario - baseline diff
+  summarise(min_diff = diff(min_stage),
+            mean_diff = diff(mean_stage),
+            max_diff = diff(max_stage),
+            .groups = "drop") |> 
+  glimpse()
+
+```
+
+
+
+## Join files 
+
+Merge with channels spatial layer 
+
+```{r}
+channels_merge <- channels |>
+  left_join(channels_with_numbers |>
+              rename(id = chan_no) |>
+              filter(variable == "stage") |>
+              filter(file == "./output/FPV2Mb_hydro.dss")) |>
+  sf::st_transform(crs = 4326) |>
+  left_join(hydro_summary |> rename(name = node)) |>
+  # left_join(dss_hydro_output |> rename(name = node)) |>
+  filter(!is.na(name)) |>
+  glimpse()
+
+```
+
+## Visuals
+
+```{r}
+palette <- colorNumeric(
+  palette = "viridis",
+  domain = channels_merge$min_diff
+)
+
+leaflet() |>
+  addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+           attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>') |>
+  addPolylines(
+    data = channels_merge,
+    color = ~palette(min_diff),
+    popup = ~paste0(
+      "id = ", id, "<br>",
+      "name = ", name, "<br>",
+      "min stage difference = ", round(min_diff, 1)
+    )
+  ) |>
+  addLegend(
+    position = "bottomright",
+    pal = palette,
+    values = channels_merge$min_diff,
+    title = "Min Stage Diff",
+    opacity = 1
+  )
+
+```

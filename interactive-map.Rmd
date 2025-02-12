@@ -159,7 +159,7 @@ observe({
       weight = 7,
       opacity = 1,
       label = ~name,
-      color = ~palette(get(stat())),
+      color = ~palette(c(final_summary$min_diff, final_summary$max_diff)), #~palette(get(stat())),
       popup = ~sprintf(
         "<div style='font-family: Arial; font-size: 12px;'>
         <table style='width: 100%%; border-collapse: collapse; margin: 10px 0;'>
@@ -195,7 +195,7 @@ observe({
     addLegend(
       position = "bottomright",
       pal = palette,
-      values = channels_merge[[stat()]],
+      values = c(final_summary$min_diff, final_summary$max_diff), #channels_merge[[stat()]],
       title = legend_title(),
       opacity = 1
     )

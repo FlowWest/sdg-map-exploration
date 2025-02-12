@@ -85,7 +85,6 @@ DTOutput("data_table")
 
 ## Column {data-width="100" data-height="100"}
 
-## Map
 
 ```{r}
 filtered_data <- reactive({
@@ -115,15 +114,6 @@ legend_title <- reactive({
          "Mean" = 'Mean Stage Diff (ft)')
   
 })
-
-# output$tbl <- renderDataTable(
-#   filtered_data() |> 
-#     filter(name %in% c('OLD', 'MID', 'GLC')) |> 
-#     select(name, min_diff, max_diff, mean_diff) |> 
-#     head()
-# )
-
-
 
 # Render Leaflet map
 output$map <- renderLeaflet({

@@ -123,6 +123,8 @@ legend_title <- reactive({
 #     head()
 # )
 
+
+
 # Render Leaflet map
 output$map <- renderLeaflet({
   leaflet() |> 

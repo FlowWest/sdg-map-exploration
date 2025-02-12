@@ -27,9 +27,11 @@ final_summary <- readRDS('data/baseline_scenario_comparison_table.RDS')
 bbox <- st_bbox(channels)
 ```
 
-## Inputs {.sidebar data-width=500}
+## Inputs {.sidebar data-width="500"}
 
-The scenario `FPV2MA` compared to baseline. Difference values represent scenario value - baseline value and are in feet. 
+The scenario `FPV2MA` is compared to the baseline, with difference values calculated as *scenario value - baseline value* and reported in feet.
+
+Each difference (min, max, mean) represents a comparison of the summarized values for a specific year and month between the scenario and baseline. For example, the minimum stage in May 2020.
 
 ```{r}
 sliderInput(
@@ -84,7 +86,6 @@ DTOutput("data_table")
 ```
 
 ## Column {data-width="100" data-height="100"}
-
 
 ```{r}
 filtered_data <- reactive({

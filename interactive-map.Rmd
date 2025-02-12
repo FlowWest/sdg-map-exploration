@@ -28,6 +28,8 @@ final_summary <- readRDS('data/baseline_scenario_comparison_table.RDS')
 
 ## Inputs {.sidebar data-width=500}
 
+The scenario `FPV2MA` compared to baseline. Difference values represent scenario value - baseline value and are in feet. 
+
 ```{r}
 selectInput(
   inputId = "which_month",
@@ -58,11 +60,11 @@ selectInput(
 )
 
 output$data_table <- renderDT({
-  req(filtered_data()) # Ensure filtered data exists
+  req(filtered_data()) 
 
   filtered_data() |> 
-    st_set_geometry(NULL) |>  # Drop spatial geometry for table display
-    select(name, min_diff, mean_diff, max_diff) |> # Columns to display
+    st_set_geometry(NULL) |>  
+    select(name, min_diff, mean_diff, max_diff) |> 
     filter(name %in% c('MHO', 'OLD', 'DGL')) |> 
     mutate(
       min_diff = round(min_diff, 1), 
@@ -109,9 +111,9 @@ legend_title <- reactive({
   req(input$which_stat)
   
   switch(input$which_stat, 
-         "Min" = 'Min Stage Diff', 
-         "Max" = 'Max Stage Diff',
-         "Mean" = 'Mean Stage Diff')
+         "Min" = 'Min Stage Diff (ft)', 
+         "Max" = 'Max Stage Diff (ft)',
+         "Mean" = 'Mean Stage Diff (ft)')
   
 })
 
@@ -130,8 +132,9 @@ output$map <- renderLeaflet({
 
   # Define color palette
   palette <- colorNumeric(
-    palette = "plasma",
-    domain = channels_merge[[stat()]]
+    palette = "viridis",
+    domain = c(channels_merge$min_diff, channels_merge$max_diff)
+    #domain = channels_merge[[stat()]]
   )
 
   leaflet() |> 

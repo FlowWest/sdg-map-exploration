@@ -1,8 +1,8 @@
 ---
-title: "Untitled"
+title: "H5 Stage Export Exploration"
 author: "Maddee Rubenson (FlowWest)"
 date: "`r Sys.Date()`"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -10,6 +10,128 @@ library(tidyverse)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+### Objective 
+
+Compare scenario `FPV2Mb` to baseline `H1Z` daily summary values. Note that data was exported from the H5 here: https://github.com/FlowWest/sdg-dashboard/tree/hydro-exports
+
+
+### Load H5 exports
+
+```{r}
+old_stage_export <- read_csv('data-raw/hdf5_exports/old_stage_export.csv') |> 
+  select(-`...1`) |> 
+  glimpse()
+
+dgl_stage_export <- read_csv('data-raw/hdf5_exports/dgl_stage_export.csv') |> 
+  select(-`...1`) |> 
+  glimpse()
+
+mho_stage_export <- read_csv('data-raw/hdf5_exports/mho_stage_export.csv') |> 
+  select(-`...1`) |> 
+  glimpse()
+
+```
+
+```{r}
+old_stage_export |> 
+  ggplot() +
+  geom_line(aes(x = Datetime, y = upstream_stage, color = "upstream")) +
+  geom_line(aes(x = Datetime, y = downstream_stage, color = "downstream")) +
+  theme_minimal() +
+  ggtitle('OLD')
+
+```
+
+```{r}
+dgl_stage_export |> 
+  ggplot() +
+  geom_line(aes(x = Datetime, y = downstream_stage, color = "downstream"), alpha = 0.5) +
+  geom_line(aes(x = Datetime, y = upstream_stage, color = "upstream"), alpha = 0.5) +
+  theme_minimal() + 
+  ggtitle('DGL')
+
+```
+
+```{r}
+mho_stage_export |> 
+  ggplot() +
+  geom_line(aes(x = Datetime, y = upstream_stage, color = "upstream")) +
+  geom_line(aes(x = Datetime, y = downstream_stage, color = "downstream")) +
+  theme_minimal() +
+  ggtitle('MHO')
+
+```
+#### OLD Comparison to DSS Export 
+
+```{r include=FALSE}
+old_dss_export <- read_delim('data-raw/fpv2mb-old-stage.txt', 
+                   delim = "\t",  
+                   skip = 2,    
+                   col_names = c("Index", "Datetime", "dss_stage_feet")) |> 
+   mutate(
+    Datetime = dmy_hm(Datetime)) |> 
+  select(-Index) |> 
+  glimpse()
+```
+
+```{r}
+ggplot() + 
+  geom_line(data = old_dss_export, aes(x = Datetime, y = dss_stage_feet, color = "DSS")) +
+  geom_line(data = old_stage_export, aes(x = Datetime, y = upstream_stage, color = "H5 - upstream")) +
+  geom_line(data = old_stage_export, aes(x = Datetime, y = downstream_stage, color = "H5 - downstream")) +
+  theme_minimal() +
+  ylab('stage')
+
+```
+## Get Stage Summaries
+
+```{r}
+old_stage_export |> 
+  full_join(dgl_stage_export) |> 
+  full_join(mho_stage_export) |> 
+  janitor::clean_names() |> 
+  mutate(date = as.Date(datetime)) |> 
+  group_by(date, channel_name, channel_id) |> 
+  summarise(daily_avg = mean(c(upstream_stage, downstream_stage)),
+            daily_min = min(c(upstream_stage, downstream_stage)),
+            daily_max = max(c(upstream_stage, downstream_stage))) |> glimpse()
+
+# summarize to daily min, max, mean 
+# compare to HZ1 baseline file 
+
+
+```
+### Compare to Baseline 
+
+```{r}
+
+
+```
+```{r}
+knitr::knit_exit()
+```
+### Interpolation? 
+
+```{r}
+# from h5 channel_output, maybe in feet? 
+distance <- 1285
+
+# Define inputs
+upstream_stage <- 10.43  
+downstream_stage <- 15 
+distance <- 1285             
+x <- distance/2                  
+
+# Calculate the proportion
+p <- x / distance
+
+# Perform interpolation
+interpolated_stage <- upstream_stage + p * (downstream_stage - upstream_stage)
+
+```
+
+# DGL
 
 ### H5 export
 
@@ -33,14 +155,14 @@ old_stage_export |>
 ### DSS export 
 
 ```{r}
-old_dss_export <- read_delim('data-raw/fpv2mb-old-stage.txt', 
+dgl_dss_export <- read_delim('data-raw/fpv2mb-dgl-stage.txt', 
                    delim = "\t",  
                    skip = 2,    
                    col_names = c("Index", "Datetime", "dss_stage_feet")) |> 
    mutate(
     Datetime = dmy_hm(Datetime)) |> 
   # mutate(model = "FPV2Mb",
-  #        channel_name = "OLD",
+  #        channel_name = "DGL",
   #        output = "DSS") |> 
   select(-Index) |> 
   glimpse()
@@ -50,7 +172,7 @@ old_dss_export <- read_delim('data-raw/fpv2mb-old-stage.txt',
 
 ```{r}
 ggplot() + 
-  geom_line(data = old_dss_export, aes(x = Datetime, y = dss_stage_feet, color = "DSS")) +
+  geom_line(data = dgl_dss_export, aes(x = Datetime, y = dss_stage_feet, color = "DSS")) +
   geom_line(data = old_stage_export, aes(x = Datetime, y = upstream_stage, color = "H5 - upstream")) +
   geom_line(data = old_stage_export, aes(x = Datetime, y = downstream_stage, color = "H5 - downstream")) +
   theme_minimal() +
@@ -72,5 +194,33 @@ ggplot(merge, aes(x = upstream_stage, y = dss_stage_feet)) +
   ggtitle("Relationship between DSS Stage Feet and Upstream Stage") +
   theme_minimal()
 
+
+```
+
+### Interpolation? 
+
+```{r}
+# from h5 channel_output, maybe in feet? 
+distance <- 1285 # distance from upstream node to downstream node from channel_output; like a distance request becuase we want this distance downstream
+length <- 5610 # length of the channel; from channel
+prop <- 1285/5610 # proportion of that 1285 is of the entire channel 
+
+# now look in xsect_layer to find the closest dist (0.227)
+# values here are a function of how much water is in the channel 
+
+
+
+
+# Define inputs
+upstream_stage <- 10.43  
+downstream_stage <- 15 
+distance <- 1285             
+x <- distance/2                  
+
+# Calculate the proportion
+p <- x / distance
+
+# Perform interpolation
+interpolated_stage <- upstream_stage + p * (downstream_stage - upstream_stage)
 
 ```

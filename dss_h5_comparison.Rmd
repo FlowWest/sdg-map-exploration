@@ -1,0 +1,76 @@
+---
+title: "Untitled"
+author: "Maddee Rubenson (FlowWest)"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### H5 export
+
+```{r}
+old_stage_export <- read_csv('data-raw/hdf5_exports/old_stage_export.csv') |> 
+  # mutate(output = "H5",
+  #        diff = downstream_stage - upstream_stage) |> 
+  select(-`...1`) |> 
+  glimpse()
+```
+
+```{r}
+old_stage_export |> 
+  ggplot() +
+  geom_line(aes(x = Datetime, y = upstream_stage, color = "upstream")) +
+  geom_line(aes(x = Datetime, y = downstream_stage, color = "downstream")) +
+  theme_minimal()
+
+```
+
+### DSS export 
+
+```{r}
+old_dss_export <- read_delim('data-raw/fpv2mb-old-stage.txt', 
+                   delim = "\t",  
+                   skip = 2,    
+                   col_names = c("Index", "Datetime", "dss_stage_feet")) |> 
+   mutate(
+    Datetime = dmy_hm(Datetime)) |> 
+  # mutate(model = "FPV2Mb",
+  #        channel_name = "OLD",
+  #        output = "DSS") |> 
+  select(-Index) |> 
+  glimpse()
+```
+
+### Compare
+
+```{r}
+ggplot() + 
+  geom_line(data = old_dss_export, aes(x = Datetime, y = dss_stage_feet, color = "DSS")) +
+  geom_line(data = old_stage_export, aes(x = Datetime, y = upstream_stage, color = "H5 - upstream")) +
+  geom_line(data = old_stage_export, aes(x = Datetime, y = downstream_stage, color = "H5 - downstream")) +
+  theme_minimal() +
+  ylab('stage')
+
+```
+
+```{r}
+merge <- old_dss_export |> 
+  full_join(old_stage_export) |> 
+  mutate(div = upstream_stage / dss_stage_feet,
+         div2 = downstream_stage / dss_stage_feet,
+         diff = downstream_stage - upstream_stage)
+
+
+ggplot(merge, aes(x = upstream_stage, y = dss_stage_feet)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", color = "red") +
+  ggtitle("Relationship between DSS Stage Feet and Upstream Stage") +
+  theme_minimal()
+
+
+```

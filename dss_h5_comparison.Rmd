@@ -18,19 +18,43 @@ Compare scenario `FPV2Mb` to baseline `H1Z` daily summary values. Note that data
 
 ### Load H5 exports
 
+#### FPV2Mb
+
 ```{r}
 old_stage_export <- read_csv('data-raw/hdf5_exports/old_stage_export.csv') |> 
   select(-`...1`) |> 
+  mutate(scenario = "FPV2Mb") |> 
   glimpse()
 
 dgl_stage_export <- read_csv('data-raw/hdf5_exports/dgl_stage_export.csv') |> 
   select(-`...1`) |> 
+  mutate(scenario = "FPV2Mb") |> 
   glimpse()
 
 mho_stage_export <- read_csv('data-raw/hdf5_exports/mho_stage_export.csv') |> 
   select(-`...1`) |> 
+  mutate(scenario = "FPV2Mb") |> 
   glimpse()
 
+```
+
+#### Baseline
+
+```{r}
+base_old_stage_export <- read_csv('data-raw/hdf5_exports/old_baseline_stage_export.csv') |> 
+  select(-`...1`) |> 
+  mutate(scenario = "baseline") |> 
+  glimpse()
+
+base_dgl_stage_export <- read_csv('data-raw/hdf5_exports/dgl_baseline_stage_export.csv') |> 
+  select(-`...1`) |> 
+  mutate(scenario = "baseline") |> 
+  glimpse()
+
+base_mho_stage_export <- read_csv('data-raw/hdf5_exports/mho_baseline_stage_export.csv') |> 
+  select(-`...1`) |> 
+  mutate(scenario = "baseline") |> 
+  glimpse()
 ```
 
 ```{r}
@@ -87,25 +111,45 @@ ggplot() +
 ## Get Stage Summaries
 
 ```{r}
-old_stage_export |> 
+all <- old_stage_export |> 
   full_join(dgl_stage_export) |> 
   full_join(mho_stage_export) |> 
+  filter(Datetime >= "2020-01-01 00:00:00") |> # to align with baseline 
+  full_join(base_old_stage_export) |> 
+  full_join(base_mho_stage_export) |> 
+  full_join(base_dgl_stage_export) |> 
+  filter(Datetime <= "2024-01-01 00:00:00") |> 
   janitor::clean_names() |> 
   mutate(date = as.Date(datetime)) |> 
-  group_by(date, channel_name, channel_id) |> 
+  group_by(date, channel_name, channel_id, scenario) |> 
   summarise(daily_avg = mean(c(upstream_stage, downstream_stage)),
             daily_min = min(c(upstream_stage, downstream_stage)),
-            daily_max = max(c(upstream_stage, downstream_stage))) |> glimpse()
-
-# summarize to daily min, max, mean 
-# compare to HZ1 baseline file 
-
+            daily_max = max(c(upstream_stage, downstream_stage))) |> 
+  glimpse()
 
 ```
 ### Compare to Baseline 
 
-```{r}
+*comparison = daily min, max, or mean scenario - baseline*
 
+```{r}
+comparison <- all |> 
+  pivot_wider(names_from = scenario,
+    values_from = c(daily_avg, daily_min, daily_max)) |> 
+  mutate(avg_daily_diff = daily_avg_FPV2Mb - daily_avg_baseline,
+    min_daily_diff = daily_min_FPV2Mb - daily_min_baseline,
+    max_daily_diff = daily_max_FPV2Mb - daily_max_baseline) |> 
+  select(-c(daily_avg_FPV2Mb, daily_avg_baseline, daily_max_FPV2Mb, daily_min_baseline, daily_max_FPV2Mb, daily_max_baseline, daily_min_FPV2Mb))
+
+comparison |> 
+  na.omit() |> 
+  ggplot() + 
+  geom_line(aes(x = date, y = avg_daily_diff, color = "avg_daily_diff")) + 
+  geom_line(aes(x = date, y = min_daily_diff, color = "min_daily_diff")) + 
+  geom_line(aes(x = date, y = max_daily_diff, color = "max_daily_diff")) + 
+  facet_wrap(~channel_name) + 
+  ylab("stage difference (feet)")+
+  theme_minimal()
 
 ```
 ```{r}

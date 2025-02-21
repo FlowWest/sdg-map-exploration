@@ -52,7 +52,7 @@ dss_hydro_summary_baseline <- summarize_hydro(dss_output_baseline) |>
 
 # Combine summaries
 hydro_summary <- dss_hydro_summary_baseline |>
-  full_join(dss_hydro_summary, by = c('node', 'month', 'year')) |>
+  full_join(dss_hydro_summary, by = c('node', 'month', 'year')) |> View()
   group_by(node, month, year) |>
   summarise(
     min_diff = diff(c(min_stage.x, min_stage.y), na.rm = TRUE),

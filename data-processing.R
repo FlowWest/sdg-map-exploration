@@ -89,10 +89,10 @@ read_files <- function(files, dir, scenario_txt) {
   return(all_data)
 }
 
-dir_baseline <- '../sdg-dashboard/data-raw/data-exports/exports/baseline/'
-files <- list.files(dir_baseline)[1:2]
+dir_baseline <- 'data-raw/hdf5_exports/baseline'
+files <- list.files(dir_baseline)
 
-dir_fpv2mb <- '../sdg-dashboard/data-raw/data-exports/exports/fpv2mb/'
+dir_fpv2mb <- 'data-raw/hdf5_exports/fpvm2b'
 files_scen <- list.files(dir_fpv2mb)
 
 combined_data_baseline <- read_files(files, dir_baseline, "baseline")
@@ -112,12 +112,17 @@ comparison <- combined_data_baseline |>
   glimpse()
 
 channels <- readRDS('data/channels_shp.RDS')
+channels_with_names <- readRDS('data/channels_with_numbers_stage.RDS') |>
+  rename(channel_id = chan_no) |>
+  select(name, channel_id)
 
 channels_with_data <- channels |>
   rename(channel_id = id) |>
   left_join(comparison) |>
+  #left_join(channels_with_names) |> # there are a few duplicates so leaving out for now
   mutate(month = month(date),
          year = year(date),
-         day = day(date))
+         day = day(date)) |>
+  filter(month %in% 5:11)
 
 saveRDS(channels_with_data, 'data/channels_with_numbers.RDS')

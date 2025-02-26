@@ -104,9 +104,9 @@ comparison <- combined_data_baseline |>
   pivot_wider(names_from = scenario,
               values_from = c(daily_avg, daily_min, daily_max)) |>
   na.omit() |>
-  mutate(avg_daily_diff = daily_avg_FPV2Mb - daily_avg_baseline,
-         min_daily_diff = daily_min_FPV2Mb - daily_min_baseline,
-         max_daily_diff = daily_max_FPV2Mb - daily_max_baseline) |>
+  mutate(avg_diff = daily_avg_FPV2Mb - daily_avg_baseline,
+         min_diff = daily_min_FPV2Mb - daily_min_baseline,
+         max_diff = daily_max_FPV2Mb - daily_max_baseline) |>
   select(-c(daily_avg_FPV2Mb, daily_avg_baseline, daily_max_FPV2Mb, daily_min_baseline,
             daily_max_FPV2Mb, daily_max_baseline, daily_min_FPV2Mb)) |>
   glimpse()
@@ -126,3 +126,12 @@ channels_with_data <- channels |>
   filter(month %in% 5:11)
 
 saveRDS(channels_with_data, 'data/channels_with_numbers.RDS')
+
+channels_monthly_data <- channels_with_data |>
+  ungroup() |>
+  group_by(month, channel_id, year) |>
+  summarize(min_diff = min(min_diff),
+            max_diff = max(max_diff),
+            avg_diff = mean(avg_diff))
+
+saveRDS(channels_monthly_data, 'data/channels_monthly_data.RDS')

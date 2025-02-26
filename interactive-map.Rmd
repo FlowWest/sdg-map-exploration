@@ -22,6 +22,10 @@ library(RColorBrewer)
 channels <- readRDS('data/channels_with_numbers.RDS') |> 
   sf::st_transform(crs = 4326) |> 
   na.omit()
+
+channels_monthly <- readRDS('data/channels_monthly_data.RDS') |> 
+  sf::st_transform(crs = 4326)
+
 bbox <- st_bbox(channels)
 ```
 
@@ -29,9 +33,13 @@ bbox <- st_bbox(channels)
 
 The scenario `FPV2Mb` is compared to the baseline, with difference values calculated as *scenario value - baseline value* and reported in feet.
 
-Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month, and day between the scenario and baseline. For example, the minimum stage on May 5, 2020.
+Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries. 
 
 ```{r}
+radioButtons(inputId = "which_agg", 
+             label = HTML("<strong>How to Summarize Data</strong>"),
+             choices = c("Daily", "Monthly"))
+
 selectInput(
   inputId = "which_year",
   label = HTML("<strong>Select Year</strong>"),
@@ -52,12 +60,20 @@ sliderInput(
 )
 
 
-selectInput(
-  inputId = "which_day", 
-  label = HTML("<strong>Select Day</strong>"),
-  choices = 1:31, 
-  selected = 1
+conditionalPanel(
+  condition = "input.which_agg == 'Daily'",
+  sliderInput(
+    inputId = "which_day", 
+    label = tags$strong("Select Day"),
+    min = 1, 
+    max = 31, 
+    value = 1,
+    step = 1, 
+    ticks = TRUE, 
+    animate = TRUE
+  )
 )
+
 
 selectInput(
   inputId = "which_stat", 
@@ -75,11 +91,11 @@ output$data_table <- renderDT({
     mutate(name = case_when(channel_id == 71 ~ "OLD", 
                             channel_id == 128 ~ "DGL", 
                             channel_id == 205 ~ "MHO")) |> 
-    select(name, min_daily_diff, avg_daily_diff, max_daily_diff) |> 
+    select(name, min_diff, avg_diff, max_diff) |> 
     mutate(
-      min_daily_diff = round(min_daily_diff, 1), 
-      avg_daily_diff = round(avg_daily_diff, 1),
-      max_daily_diff = round(max_daily_diff, 1)
+      min_diff = round(min_diff, 1), 
+      avg_diff = round(avg_diff, 1),
+      max_diff = round(max_diff, 1)
     ) 
 }, options = list(
   searching = FALSE,  
@@ -100,21 +116,29 @@ DTOutput("data_table")
 filtered_data <- reactive({
   req(input$which_month, input$which_year)
   
-  channels |> 
-    filter(month == input$which_month,
-           year == input$which_year,
-           day == input$which_day) |> 
-    glimpse()
+  if(input$which_agg == "Monthly") {
+    agg <- channels_monthly |>
+      filter(month == input$which_month, 
+             year == input$which_year) 
+  } else {
+    agg <- channels |> 
+      filter(day == input$which_day,
+             month == input$which_month,
+             year == input$which_year)
+  }
   
+  agg |> glimpse()
+  
+  return(agg)
 })
 
 stat <- reactive({
   req(input$which_stat)
   
   switch(input$which_stat, 
-         "Min" = 'min_daily_diff', 
-         "Max" = 'max_daily_diff',
-         "Mean" = 'avg_daily_diff')
+         "Min" = 'min_diff', 
+         "Max" = 'max_diff',
+         "Mean" = 'avg_diff')
   
 })
 
@@ -142,7 +166,7 @@ output$map <- renderLeaflet({
       "USGS.USTopo",
       group = "Topographic"
     ) |>
-    setView(lat = 37.82116120308882, lng = -121.42962730014777, zoom = 13  # Adjust this value as needed (higher number = more zoomed in)
+    setView(lat = 37.82116120308882, lng = -121.42962730014777, zoom = 13  
     ) |> 
     addLayersControl(
       baseGroups = c("Satellite", "Street", "Topographic"),
@@ -161,13 +185,14 @@ observe({
   current_legend_title <- legend_title()
   
   # Define color palette
-  data_min <- min(channels_merge$avg_daily_diff, na.rm = TRUE)
-  data_max <- max(channels_merge$avg_daily_diff, na.rm = TRUE)
+  data_min <- min(channels_merge$avg_diff, na.rm = TRUE)
+  data_max <- max(channels_merge$avg_diff, na.rm = TRUE)
   # Determine the maximum absolute value
-  max_abs_value <- max(abs(c(data_min, data_max)))
+  #max_abs_value <- max(abs(c(data_min, data_max)))
+  max_abs_value <- range(channels_merge$avg_diff, channels_merge$min_diff, channels_merge$max_diff)
   
   palette <- colorNumeric(
-    palette = brewer.pal(11, "RdBu"),  # Reverse to have reds for negative and blues for positive
+    palette = colorRampPalette(brewer.pal(11, "RdBu"))(100),
     domain = c(-max_abs_value, max_abs_value))
   
   # Update polylines

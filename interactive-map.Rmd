@@ -36,77 +36,94 @@ The scenario `FPV2Mb` is compared to the baseline, with difference values calcul
 Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries. 
 
 ```{r}
-radioButtons(inputId = "which_agg", 
-             label = HTML("<strong>How to Summarize Data</strong>"),
-             choices = c("Daily", "Monthly"))
-
-selectInput(
-  inputId = "which_year",
-  label = HTML("<strong>Select Year</strong>"),
-  choices = 2020:2023,
-  selected = 2020
+tabsetPanel(
+  tabPanel("Map Controls", 
+           
+           tagList(
+             radioButtons(inputId = "which_agg", 
+                          label = HTML("<strong>How to Summarize Data</strong>"),
+                          choices = c("Daily", "Monthly")),
+             
+             selectInput(
+               inputId = "which_year",
+               label = HTML("<strong>Select Year</strong>"),
+               choices = 2020:2023,
+               selected = 2020
+             ),
+             
+             
+             sliderInput(
+               inputId = "which_month",
+               label = HTML("<strong>Select Month</strong>"),
+               min = 5,
+               max = 11,
+               value = 5,
+               step = 1,
+               ticks = TRUE,
+               animate = TRUE
+             ),
+             
+             
+             conditionalPanel(
+               condition = "input.which_agg == 'Daily'",
+               sliderInput(
+                 inputId = "which_day", 
+                 label = tags$strong("Select Day"),
+                 min = 1, 
+                 max = 31, 
+                 value = 1,
+                 step = 1, 
+                 ticks = TRUE, 
+                 animate = TRUE
+               )
+             ),
+             
+             
+             selectInput(
+               inputId = "which_stat", 
+               label = HTML("<strong>Select Statistic</strong>"),
+               choices = c("Min", "Max", "Mean"), 
+               selected = "Mean"
+             ), 
+             
+             output$data_table <- renderDT({
+               req(filtered_data()) 
+               
+               filtered_data() |> 
+                 st_set_geometry(NULL) |>  
+                 filter(channel_id %in% c(71, 128, 205)) |> 
+                 mutate(name = case_when(channel_id == 71 ~ "OLD", 
+                                         channel_id == 128 ~ "DGL", 
+                                         channel_id == 205 ~ "MHO")) |> 
+                 select(name, min_diff, avg_diff, max_diff) |> 
+                 mutate(
+                   min_diff = round(min_diff, 1), 
+                   avg_diff = round(avg_diff, 1),
+                   max_diff = round(max_diff, 1)
+                 ) 
+             }, options = list(
+               searching = FALSE,  
+               lengthChange = FALSE,  
+               paging = FALSE, 
+               info = FALSE,
+               scrollY = "150" 
+             )),
+             
+             # Output the data table
+             #DTOutput("data_table")
+             
+           )
+           
+           
+           #----------------
+  ), 
+  tabPanel("Settings", 
+           tagList(
+             selectInput("color_palette", label="Select Color Palette", choices = c("Red to Blue"="RdBu", "Purple to Orange"="PuOr", "Purple to Green"="PRGn", "Red Yellow Green"="RdYlGn"))
+           ))
 )
 
 
-sliderInput(
-  inputId = "which_month",
-  label = HTML("<strong>Select Month</strong>"),
-  min = 5,
-  max = 11,
-  value = 5,
-  step = 1,
-  ticks = TRUE,
-  animate = TRUE
-)
-
-
-conditionalPanel(
-  condition = "input.which_agg == 'Daily'",
-  sliderInput(
-    inputId = "which_day", 
-    label = tags$strong("Select Day"),
-    min = 1, 
-    max = 31, 
-    value = 1,
-    step = 1, 
-    ticks = TRUE, 
-    animate = TRUE
-  )
-)
-
-
-selectInput(
-  inputId = "which_stat", 
-  label = HTML("<strong>Select Statistic</strong>"),
-  choices = c("Min", "Max", "Mean"), 
-  selected = "Mean"
-)
-
-output$data_table <- renderDT({
-  req(filtered_data()) 
-  
-  filtered_data() |> 
-    st_set_geometry(NULL) |>  
-    filter(channel_id %in% c(71, 128, 205)) |> 
-    mutate(name = case_when(channel_id == 71 ~ "OLD", 
-                            channel_id == 128 ~ "DGL", 
-                            channel_id == 205 ~ "MHO")) |> 
-    select(name, min_diff, avg_diff, max_diff) |> 
-    mutate(
-      min_diff = round(min_diff, 1), 
-      avg_diff = round(avg_diff, 1),
-      max_diff = round(max_diff, 1)
-    ) 
-}, options = list(
-  searching = FALSE,  
-  lengthChange = FALSE,  
-  paging = FALSE, 
-  info = FALSE,
-  scrollY = "150" 
-))
-
-# Output the data table
-DTOutput("data_table")
 
 ```
 
@@ -192,7 +209,7 @@ observe({
   max_abs_value <- range(channels_merge$avg_diff, channels_merge$min_diff, channels_merge$max_diff)
   
   palette <- colorNumeric(
-    palette = colorRampPalette(brewer.pal(11, "RdBu"))(100),
+    palette = colorRampPalette(brewer.pal(11, input$color_palette))(100),
     domain = c(-max_abs_value, max_abs_value))
   
   # Update polylines

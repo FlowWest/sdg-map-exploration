@@ -27,6 +27,14 @@ channels_monthly <- readRDS('data/channels_monthly_data.RDS') |>
   sf::st_transform(crs = 4326)
 
 bbox <- st_bbox(channels)
+
+gates <- channels |> 
+  filter(channel_id %in% c(71, 128, 205)) |> 
+  mutate(name = case_when(channel_id == 71 ~ "OLD", 
+                          channel_id == 128 ~ "DGL", 
+                          channel_id == 205 ~ "MHO")) |> 
+  select(channel_id, geometry, name) |> 
+  distinct() 
 ```
 
 ## Inputs {.sidebar data-width="500"}
@@ -199,7 +207,6 @@ output$map <- renderLeaflet({
 observe({
   req(filtered_data())
   
-  
   channels_merge <- filtered_data()
   current_stat <- stat()
   current_legend_title <- legend_title()
@@ -218,6 +225,20 @@ observe({
   leafletProxy("map") |>
     clearShapes() |> 
     clearControls() |> 
+    addPolylines(data = gates, 
+                 label = ~name,
+                 labelOptions = labelOptions(permanent = TRUE,  
+                                             direction = "auto",  
+                                             opacity = 1,  
+                                             textOnly = FALSE,  
+                                             style = list(
+                                               "font-weight" = "bold",  
+                                               "font-size" = "14px",  
+                                               "color" = "black",
+                                               "background" = "white",
+                                               "border" = "1px solid black",
+                                               "padding" = "3px"
+                                             ))) |> 
     addPolylines(
       data = channels_merge,
       weight = 7,

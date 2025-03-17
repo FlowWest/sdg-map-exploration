@@ -31,8 +31,8 @@ bbox <- st_bbox(channels)
 gates <- channels |> 
   filter(channel_id %in% c(71, 128, 205)) |> 
   mutate(name = case_when(channel_id == 71 ~ "OLD", 
-                          channel_id == 128 ~ "DGL", 
-                          channel_id == 205 ~ "MHO")) |> 
+                          channel_id == 128 ~ "MHO", 
+                          channel_id == 205 ~ "DGL")) |> 
   select(channel_id, geometry, name) |> 
   distinct() 
 ```
@@ -101,8 +101,8 @@ tabsetPanel(
                  st_set_geometry(NULL) |>  
                  filter(channel_id %in% c(71, 128, 205)) |> 
                  mutate(name = case_when(channel_id == 71 ~ "OLD", 
-                                         channel_id == 128 ~ "DGL", 
-                                         channel_id == 205 ~ "MHO")) |> 
+                                         channel_id == 128 ~ "MHO", 
+                                         channel_id == 205 ~ "DGL")) |> 
                  select(name, min_diff, avg_diff, max_diff) |> 
                  mutate(
                    min_diff = round(min_diff, 1), 

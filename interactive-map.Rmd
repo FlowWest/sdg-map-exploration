@@ -45,7 +45,9 @@ gates <- channels |>
 
 ## Inputs {.sidebar data-width="500"}
 
-The scenario `FPV2Mb` is compared to the baseline, with difference values calculated as *scenario value - baseline value* and reported in feet.
+<!-- The scenario `FPV2Mb` is compared to the baseline, with  -->
+
+Difference values calculated as *scenario 1 - scenario 2*.
 
 Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries. 
 
@@ -54,9 +56,18 @@ tabsetPanel(
   tabPanel("Map Controls", 
            
            tagList(
+             tags$div(
+               style = "display: inline-block; vertical-align: top; width: 45%;",
+               selectInput("scen1", tags$strong("Scenario 1:"), choices = c("B1sa", "B1sb"))
+             ),
+             tags$div(
+               style = "display: inline-block; vertical-align: top; width: 45%; margin-left: 5%;",
+               selectInput("scen2", tags$strong("Scenario 2:"), choices = c("B1sa", "B1sb"))
+             ),
+             
              selectInput(inputId = "which_variable",
                          label = tags$strong("What Variable"),
-                         choices = c("Depth", "EC")),
+                         choices = c("Stage", "EC")),
              
              radioButtons(inputId = "which_agg", 
                           label = HTML("<strong>How to Summarize Data</strong>"),

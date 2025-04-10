@@ -253,16 +253,12 @@ leaflet() |>
 ```{r}
 channels_ec_monthly <- readRDS('data/channels_with_monthly_ec_b1sa.RDS') |> 
   sf::st_transform(crs = 4326) |> 
-  na.omit()
+  na.omit() |> 
+  filter(month == 1, year == 2021)
 
-palette <- colorNumeric(
-  palette = "magma",
-  domain = channels_ec_monthly$mean
-)
-
-palette <- colorNumeric(
-    palette = colorRampPalette(brewer.pal(11, "magma"))(100),
-    domain = c(-max(channels_ec_monthly$max), max(channels_ec_monthly$max)))
+palette <- colorBin(
+    palette = colorRampPalette(brewer.pal(11, "RdBu"))(100),
+    domain = c(0, max(channels_ec_monthly$mean)))
 
 leaflet() |>
   addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",

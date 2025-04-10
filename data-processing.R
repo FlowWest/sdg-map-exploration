@@ -21,14 +21,14 @@ read_csv('data-raw/fpv2ma_hydro_export.csv') |>
          lubridate::year(datetime) %in% 2020:2023) |> #2016 2017 2018 2019 2020 2021 2022 2023
   saveRDS("data/fpv2ma_hydro_stage.RDS")
 
-channels <- sf::read_sf('data-raw/Grid Shapefiles/dsm2_channels_SDG_20250319.shp') |>
-  saveRDS('data/channels_shp.RDS')
+channels <- sf::read_sf('data-raw/Grid Shapefiles/dsm2_channels_SDG_20250319.shp')
+saveRDS(channels, 'data/channels_shp.RDS')
 
 channels_with_numbers <- read_csv('data-raw/channel_names_from_h5.csv') |>
   filter(distance != "length",
          variable == "stage",
          file == "./output/FPV2Mb_hydro.dss") |> glimpse()
-  saveRDS('data/channels_with_numbers_stage.RDS')
+#  saveRDS('data/channels_with_numbers_stage.RDS')
 
 channels_with_numbers_new <- read_table("data-raw/output-channel.txt", col_names = FALSE) |>
   glimpse()
@@ -84,7 +84,9 @@ read_files <- function(files, dir, scenario_txt) {
       file_path <- file.path(dir, .x)
       tmp <- read_csv(file_path)
       tmp <- tmp |>
-        mutate(scenario = scenario_txt)
+        mutate(scenario = scenario_txt,
+               channel_id = as.numeric(channel_id)) |>
+        rename(id = channel_id)
       return(tmp)
     })
 
@@ -140,7 +142,7 @@ saveRDS(channels_monthly_data, 'data/channels_monthly_data.RDS')
 
 
 # EC data processing ------------------------------------------------------
-
+## From DSS
 ec_data_raw <- read_csv('data-raw/b1sa-ec-export.csv') |>
   mutate(name = toupper(node)) |>
   glimpse()
@@ -193,3 +195,45 @@ channels_with_ec_daily <- channels |>
   left_join(daily_ec)
 
 saveRDS(channels_with_ec_daily, "data/channels_with_daily_ec_b1sa.RDS")
+
+## From H5
+
+dir_b1sa <- 'data-raw/b1sa-ec-all-nodes-output/'
+files <- list.files(dir_b1sa)
+
+dir_b1sb <- 'data-raw/b1sb-ec-all-nodes-output/'
+files_scen <- list.files(dir_b1sb)
+
+combined_data_b1sa <- read_files(files, dir_b1sa, "B1sa")
+combined_data_b1sb <- read_files(files_scen, dir_b1sb, "B1sb") |> na.omit()
+
+combined_data_b1sa <- combined_data_b1sa  |>
+  na.omit() |>
+  glimpse()
+
+saveRDS(combined_data_b1sa, "data/combined_data_b1sa.RDS")
+saveRDS(combined_data_b1sb, "data/combined_data_b1sb.RDS")
+
+comparison <- bind_rows(combined_data_b1sa, combined_data_b1sb) %>%
+  janitor::clean_names() %>%
+  pivot_wider(
+    names_from = scenario,
+    values_from = c(daily_avg, daily_min, daily_max)
+  ) %>%
+  na.omit()
+
+scenario_cols <- names(comparison)[grepl("^daily_avg_", names(comparison))]
+scenarios <- sub("^daily_avg_", "", scenario_cols)
+
+comparison <- comparison %>%
+  mutate(
+    avg_diff = .data[[paste0("daily_avg_", scenarios[1])]] - .data[[paste0("daily_avg_", scenarios[2])]],
+    min_diff = .data[[paste0("daily_min_", scenarios[1])]] - .data[[paste0("daily_min_", scenarios[2])]],
+    max_diff = .data[[paste0("daily_max_", scenarios[1])]] - .data[[paste0("daily_max_", scenarios[2])]]
+  )
+
+comparison |>
+  mutate(channel_id = as.numeric(channel_id)) |>
+  rename(id = channel_id) |>
+  left_join(channels) |>
+  glimpse()

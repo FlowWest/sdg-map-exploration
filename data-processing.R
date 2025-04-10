@@ -21,15 +21,18 @@ read_csv('data-raw/fpv2ma_hydro_export.csv') |>
          lubridate::year(datetime) %in% 2020:2023) |> #2016 2017 2018 2019 2020 2021 2022 2023
   saveRDS("data/fpv2ma_hydro_stage.RDS")
 
-channels <- sf::read_sf('data-raw/fc2024.01_chan/FC2024.01_channels_centerlines.shp') |>
+channels <- sf::read_sf('data-raw/Grid Shapefiles/dsm2_channels_SDG_20250319.shp') |>
   saveRDS('data/channels_shp.RDS')
 
 channels_with_numbers <- read_csv('data-raw/channel_names_from_h5.csv') |>
   filter(distance != "length",
          variable == "stage",
-         file == "./output/FPV2Mb_hydro.dss") |>
+         file == "./output/FPV2Mb_hydro.dss") |> glimpse()
   saveRDS('data/channels_with_numbers_stage.RDS')
 
+channels_with_numbers_new <- read_table("data-raw/output-channel.txt", col_names = FALSE) |>
+  glimpse()
+colnames(channels_with_numbers_new) <- c(colnames(channels_with_numbers[2:7]), "file")
 
 # data processing of summary stats ----------------------------------------
 
@@ -76,13 +79,12 @@ final_summary <- channels |>
 
 # Pull in All H5 data for Comparison  -------------------------------------
 read_files <- function(files, dir, scenario_txt) {
-  # Iterate through each file, read it, and process it
-  all_data <- files |>
+   all_data <- files |>
     map_dfr(~ {
-      file_path <- file.path(dir, .x) # Combine directory and file name
-      tmp <- read_csv(file_path) # Read each file with full path
+      file_path <- file.path(dir, .x)
+      tmp <- read_csv(file_path)
       tmp <- tmp |>
-        mutate(scenario = scenario_txt) # Add the scenario column
+        mutate(scenario = scenario_txt)
       return(tmp)
     })
 
@@ -135,3 +137,59 @@ channels_monthly_data <- channels_with_data |>
             avg_diff = mean(avg_diff))
 
 saveRDS(channels_monthly_data, 'data/channels_monthly_data.RDS')
+
+
+# EC data processing ------------------------------------------------------
+
+ec_data_raw <- read_csv('data-raw/b1sa-ec-export.csv') |>
+  mutate(name = toupper(node)) |>
+  glimpse()
+
+unique(ec_data_raw$unit) # All NA
+min(ec_data_raw$datetime)
+max(ec_data_raw$datetime)
+unique(ec_data_raw$node)
+
+monthly_ec <- ec_data_raw |>
+  mutate(month = month(datetime),
+         year = year(datetime),
+         day = day(datetime)) |>
+  group_by(month, year, name) |>
+  summarise(min = min(value),
+            max = max(value),
+            mean = mean(value))
+
+daily_ec <- ec_data_raw |>
+  mutate(month = month(datetime),
+         year = year(datetime),
+         day = day(datetime)) |>
+  group_by(month, year, day, name) |>
+  summarise(min = min(value),
+            max = max(value),
+            mean = mean(value))
+
+channels_with_ec_monthly <- channels |>
+  left_join(channels_with_numbers_new |>
+              rename(id = chan_no)) |>
+  filter(!is.na(name)) |>
+  filter(variable == "flow") |>
+  filter(file == "./output/B1Sa_hydro.dss") |>
+  sf::st_transform(crs = 4326) |>
+  select(id, name, geometry) |>
+  filter(!is.na(name)) |>
+  left_join(monthly_ec)
+
+saveRDS(channels_with_ec_monthly, "data/channels_with_monthly_ec_b1sa.RDS")
+
+channels_with_ec_daily <- channels |>
+  left_join(channels_with_numbers_new |>
+              rename(id = chan_no)) |>
+  filter(!is.na(name)) |>
+  filter(variable == "flow") |>
+  filter(file == "./output/B1Sa_hydro.dss") |>
+  sf::st_transform(crs = 4326) |>
+  select(id, name, geometry) |>
+  filter(!is.na(name)) |>
+  left_join(daily_ec)
+
+saveRDS(channels_with_ec_daily, "data/channels_with_daily_ec_b1sa.RDS")

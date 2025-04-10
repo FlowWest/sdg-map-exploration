@@ -247,3 +247,41 @@ leaflet() |>
   )
 
 ```
+
+## EC data
+
+```{r}
+channels_ec_monthly <- readRDS('data/channels_with_monthly_ec_b1sa.RDS') |> 
+  sf::st_transform(crs = 4326) |> 
+  na.omit()
+
+palette <- colorNumeric(
+  palette = "magma",
+  domain = channels_ec_monthly$mean
+)
+
+palette <- colorNumeric(
+    palette = colorRampPalette(brewer.pal(11, "magma"))(100),
+    domain = c(-max(channels_ec_monthly$max), max(channels_ec_monthly$max)))
+
+leaflet() |>
+  addTiles(urlTemplate = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+           attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>') |>
+  addPolylines(
+    data = channels_ec_monthly ,
+    color = ~palette(mean),
+    popup = ~paste0(
+      "id = ", id, "<br>",
+      "name = ", name, "<br>",
+      "mean EC = ", round(mean, 1)
+    )
+  ) |>
+  addLegend(
+    position = "bottomright",
+    pal = palette,
+    values = channels_ec_monthly$mean,
+    title = "mean EC",
+    opacity = 1
+  )
+
+```

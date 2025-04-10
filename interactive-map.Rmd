@@ -19,11 +19,17 @@ library(RColorBrewer)
 ```
 
 ```{r}
+# daily data with channels - depth
 channels <- readRDS('data/channels_with_numbers.RDS') |> 
   sf::st_transform(crs = 4326) |> 
   na.omit()
 
+# monthly data with channels - depth
 channels_monthly <- readRDS('data/channels_monthly_data.RDS') |> 
+  sf::st_transform(crs = 4326)
+
+# ec data monthly 
+channels_ec_monthly <- readRDS('data/channels_with_monthly_ec_b1sa.RDS') |> 
   sf::st_transform(crs = 4326)
 
 bbox <- st_bbox(channels)
@@ -48,6 +54,10 @@ tabsetPanel(
   tabPanel("Map Controls", 
            
            tagList(
+             selectInput(inputId = "which_variable",
+                         label = tags$strong("What Variable"),
+                         choices = c("Depth", "EC")),
+             
              radioButtons(inputId = "which_agg", 
                           label = HTML("<strong>How to Summarize Data</strong>"),
                           choices = c("Daily", "Monthly")),

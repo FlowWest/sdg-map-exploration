@@ -74,6 +74,7 @@ tabsetPanel(
              ),
              
              uiOutput("warning_message"),
+             uiOutput("warning_message_2"),
              
              selectInput(inputId = "which_variable",
                          label = tags$strong("What Variable"),
@@ -88,7 +89,7 @@ tabsetPanel(
              selectInput(
                inputId = "which_year",
                label = HTML("<strong>Select Year</strong>"),
-               choices = 2020:2023,
+               choices = c(2020:2023), # TODO: this could be better and dynamically based off of the scenarios 
                selected = 2021
              ),
              
@@ -198,6 +199,15 @@ output$warning_message <- renderUI({
   }
 })
 
+output$warning_message_2 <- renderUI({
+  if (nrow(filtered_data()) == 0) {
+    div(style = "color: darkred; font-weight: bold; font-size: 0.9em;",
+        "There is no data for selected year and month; please select another")
+  } else {
+    NULL
+  }
+})
+
 scenario_comparison <- reactive({
   req(c(input$scen1, input$scen2))
   
@@ -277,6 +287,12 @@ filtered_data <- reactive({
       st_as_sf()
   }
   
+  validate(
+    need(nrow(agg) > 0, "There is no data for selected year and month; please select another")
+  )
+  
+  
+  
   return(agg)
 })
 
@@ -303,7 +319,7 @@ legend_title <- reactive({
          "Min" = paste0('Min Diff (', unit(), ")"), 
          "Max" = paste0('Max Diff (', unit(), ")"), 
          "Mean" = paste0('Mean Diff (', unit(), ")")
-         ) 
+  ) 
   
 })
 

@@ -111,7 +111,7 @@ tabsetPanel(
                  inputId = "which_day", 
                  label = tags$strong("Select Day"),
                  min = 1, 
-                 max = 30, 
+                 max = 30, # TODO: need to troubleshoot the 31 days so it doesn't crash
                  value = 1,
                  step = 1, 
                  ticks = TRUE, 
@@ -258,22 +258,23 @@ filtered_data <- reactive({
   if(input$which_agg == "Monthly") {
     print("monthly")
     agg <- scenario_comparison() |>
-      # group_by(month, id, year, geometry) |>  
       filter(month == input$which_month, 
              year == input$which_year) |> 
-      sf::st_as_sf()
-    #ungroup()
+      group_by(month, id, year, geometry) |>
+      summarize(min_diff = min(min_diff),
+                max_diff = max(max_diff),
+                avg_diff = mean(avg_diff)) |> 
+      sf::st_as_sf() |> 
+      ungroup()
+    
     print(head(agg))
   } else {
     print("daily")
     agg <- scenario_comparison() |> 
-      #group_by(day, month, year, id, geometry |> 
       filter(day == input$which_day,
              month == input$which_month,
              year == input$which_year)  |> 
       st_as_sf()
-    #ungroup()
-    print(head(agg))
   }
   
   return(agg)
@@ -289,13 +290,20 @@ stat <- reactive({
   
 })
 
+unit <- reactive({
+  switch(input$which_variable,
+         "Stage" = "feet",
+         "EC" = "TBD")
+})
+
 legend_title <- reactive({
   req(input$which_stat)
   
   switch(input$which_stat, 
-         "Min" = 'Min Diff ', 
-         "Max" = 'Max Diff ',
-         "Mean" = 'Mean Diff ')
+         "Min" = paste0('Min Diff (', unit(), ")"), 
+         "Max" = paste0('Max Diff (', unit(), ")"), 
+         "Mean" = paste0('Mean Diff (', unit(), ")")
+         ) 
   
 })
 
@@ -336,7 +344,6 @@ observe({
   data_min <- min(channels_merge$avg_diff, na.rm = TRUE)
   data_max <- max(channels_merge$avg_diff, na.rm = TRUE)
   # Determine the maximum absolute value
-  #max_abs_value <- max(abs(c(data_min, data_max)))
   max_abs_value <- range(channels_merge$avg_diff, channels_merge$min_diff, channels_merge$max_diff)
   
   palette <- colorNumeric(
@@ -375,7 +382,7 @@ observe({
           </tr>
           <tr style='background-color: #f8f9fa;'>
             <td style='padding: 8px; border: 1px solid #dee2e6;'><strong>%s</strong></td>
-            <td style='padding: 8px; border: 1px solid #dee2e6;'>%.2f ft</td>
+            <td style='padding: 8px; border: 1px solid #dee2e6;'>%.2f</td> 
           </tr>
         </table>
       </div>",

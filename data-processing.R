@@ -244,6 +244,7 @@ tmp <- comp_join |>
   #group_by(day, month, year, id) |>
   filter(day == 1,
          month == 5,
-         year == 2021)
+         year == 2021) |>
+  sf::st_as_sf()
 
 View(tmp)

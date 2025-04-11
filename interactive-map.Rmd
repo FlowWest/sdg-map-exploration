@@ -73,19 +73,23 @@ tabsetPanel(
                            selected = "b1sb")
              ),
              
+             uiOutput("warning_message"),
+             
              selectInput(inputId = "which_variable",
                          label = tags$strong("What Variable"),
-                         choices = c("Stage", "EC")),
+                         choices = c("Stage", "EC"),
+                         selected = "EC"),
              
              radioButtons(inputId = "which_agg", 
                           label = HTML("<strong>How to Summarize Data</strong>"),
-                          choices = c("Daily", "Monthly")),
+                          choices = c("Daily", "Monthly"),
+                          selected = "Daily"),
              
              selectInput(
                inputId = "which_year",
                label = HTML("<strong>Select Year</strong>"),
                choices = 2020:2023,
-               selected = 2020
+               selected = 2021
              ),
              
              
@@ -107,7 +111,7 @@ tabsetPanel(
                  inputId = "which_day", 
                  label = tags$strong("Select Day"),
                  min = 1, 
-                 max = 31, 
+                 max = 30, 
                  value = 1,
                  step = 1, 
                  ticks = TRUE, 
@@ -123,32 +127,32 @@ tabsetPanel(
                selected = "Mean"
              ), 
              
-             #   output$data_table <- renderDT({
-             #     req(filtered_data()) 
-             #     
-             #     filtered_data() |> 
-             #       st_set_geometry(NULL) |>  
-             #       filter(channel_id %in% c(71, 128, 205)) |> 
-             #       mutate(name = case_when(channel_id == 71 ~ "OLD", 
-             #                               channel_id == 128 ~ "MHO", 
-             #                               channel_id == 205 ~ "DGL")) |> 
-             #       select(name, min_diff, avg_diff, max_diff) |> 
-             #       mutate(
-             #         min_diff = round(min_diff, 1), 
-             #         avg_diff = round(avg_diff, 1),
-             #         max_diff = round(max_diff, 1)
-             #       ) 
-             #   }, options = list(
-             #     searching = FALSE,  
-             #     lengthChange = FALSE,  
-             #     paging = FALSE, 
-             #     info = FALSE,
-             #     scrollY = "150" 
-             #   )),
-             #   
-             # )
+             output$data_table <- renderDT({
+               req(filtered_data())
+               
+               filtered_data() |>
+                 st_set_geometry(NULL) |>
+                 filter(id %in% c(71, 128, 205)) |>
+                 mutate(name = case_when(id == 71 ~ "OLD",
+                                         id == 128 ~ "MHO",
+                                         id == 205 ~ "DGL")) |>
+                 select(name, min_diff, avg_diff, max_diff) |>
+                 mutate(
+                   min_diff = round(min_diff, 1),
+                   avg_diff = round(avg_diff, 1),
+                   max_diff = round(max_diff, 1)
+                 )
+             }, options = list(
+               searching = FALSE,
+               lengthChange = FALSE,
+               paging = FALSE,
+               info = FALSE,
+               scrollY = "150"
+             )),
              
            )
+           
+           
            #----------------
   ), 
   tabPanel("Settings", 
@@ -185,8 +189,22 @@ scenario_2_data <- reactive({
     as.data.frame() 
 })
 
+output$warning_message <- renderUI({
+  if (input$scen1 == input$scen2) {
+    div(style = "color: darkred; font-weight: bold; font-size: 0.9em;",
+        "Please select two different scenarios for comparison.")
+  } else {
+    NULL
+  }
+})
+
 scenario_comparison <- reactive({
   req(c(input$scen1, input$scen2))
+  
+  validate(
+    need(input$scen1 != input$scen2, "Please select two different scenarios for comparison.")
+  )
+  
   
   comparison <- bind_rows(scenario_1_data(), scenario_2_data()) |> 
     janitor::clean_names() |> 
@@ -230,22 +248,33 @@ observe({
 
 ```{r}
 filtered_data <- reactive({
-  req(input$which_month, input$which_year)
-  # 
+  req(input$which_month, input$which_year, scenario_comparison())
+  
+  print(input$which_month)
+  print(input$which_year)
+  print(input$which_day)
+  
+  
   if(input$which_agg == "Monthly") {
+    print("monthly")
     agg <- scenario_comparison() |>
-      group_by(month, id, year) |>  
+      # group_by(month, id, year, geometry) |>  
       filter(month == input$which_month, 
-             year == input$which_year) 
+             year == input$which_year) |> 
+      sf::st_as_sf()
+    #ungroup()
+    print(head(agg))
   } else {
+    print("daily")
     agg <- scenario_comparison() |> 
-      group_by(day, month, year, id) |> 
+      #group_by(day, month, year, id, geometry |> 
       filter(day == input$which_day,
              month == input$which_month,
-             year == input$which_year)
+             year == input$which_year)  |> 
+      st_as_sf()
+    #ungroup()
+    print(head(agg))
   }
-  
-  agg 
   
   return(agg)
 })
@@ -264,9 +293,9 @@ legend_title <- reactive({
   req(input$which_stat)
   
   switch(input$which_stat, 
-         "Min" = 'Min Stage Diff (ft)', 
-         "Max" = 'Max Stage Diff (ft)',
-         "Mean" = 'Mean Stage Diff (ft)')
+         "Min" = 'Min Diff ', 
+         "Max" = 'Max Diff ',
+         "Mean" = 'Mean Diff ')
   
 })
 
@@ -294,81 +323,83 @@ output$map <- renderLeaflet({
     )
 })
 
-# observe({
-#   req(filtered_data())
-#   
-#   channels_merge <- filtered_data()
-#   current_stat <- stat()
-#   current_legend_title <- legend_title()
-#   
-#   # Define color palette
-#   data_min <- min(channels_merge$avg_diff, na.rm = TRUE)
-#   data_max <- max(channels_merge$avg_diff, na.rm = TRUE)
-#   # Determine the maximum absolute value
-#   #max_abs_value <- max(abs(c(data_min, data_max)))
-#   max_abs_value <- range(channels_merge$avg_diff, channels_merge$min_diff, channels_merge$max_diff)
-#   
-#   palette <- colorNumeric(
-#     palette = colorRampPalette(brewer.pal(11, input$color_palette))(100),
-#     domain = c(-max_abs_value, max_abs_value))
-#   
-#   leafletProxy("map") |>
-#     clearShapes() |> 
-#     clearControls() |> 
-#     addPolylines(data = gates, 
-#                  label = ~name,
-#                  labelOptions = labelOptions(permanent = TRUE,  
-#                                              direction = "auto",  
-#                                              opacity = 1,  
-#                                              textOnly = FALSE,  
-#                                              style = list(
-#                                                "font-weight" = "bold",  
-#                                                "font-size" = "14px",  
-#                                                "color" = "black",
-#                                                "background" = "white",
-#                                                "border" = "1px solid black",
-#                                                "padding" = "3px"
-#                                              ))) |> 
-#     addPolylines(
-#       data = channels_merge,
-#       weight = 7,
-#       opacity = 1,
-#       label = ~as.character(channel_id),
-#       color = ~palette(get(current_stat)),
-#       popup = ~sprintf(
-#         "<div style='font-family: Arial; font-size: 12px;'>
-#         <table style='width: 100%%; border-collapse: collapse; margin: 10px 0;'>
-#           <tr style='background-color: #f8f9fa;'>
-#             <td style='padding: 8px; border: 1px solid #dee2e6;'><strong>ID</strong></td>
-#             <td style='padding: 8px; border: 1px solid #dee2e6;'>%s</td>
-#           </tr>
-#           <tr style='background-color: #f8f9fa;'>
-#             <td style='padding: 8px; border: 1px solid #dee2e6;'><strong>%s</strong></td>
-#             <td style='padding: 8px; border: 1px solid #dee2e6;'>%.2f ft</td>
-#           </tr>
-#         </table>
-#       </div>",
-#       as.character(channel_id), current_legend_title, get(current_stat)
-#       ),
-#       labelOptions = labelOptions(
-#         style = list(
-#           "font-weight" = "bold",
-#           padding = "3px 8px"
-#         ),
-#         textsize = "15px",
-#         direction = "auto"
-#       )
-#     ) |> 
-#     addLegend(
-#       position = "bottomright",
-#       pal = palette,
-#       values = channels_merge[[current_stat]],
-#       title = current_legend_title,
-#       opacity = 1
-#     )
-# })
-# 
-# leafletOutput("map", width = "100%", height = "100%")
+observe({
+  req(filtered_data())
+  
+  print(head(filtered_data()))
+  
+  channels_merge <- filtered_data()
+  current_stat <- stat()
+  current_legend_title <- legend_title()
+  
+  # Define color palette
+  data_min <- min(channels_merge$avg_diff, na.rm = TRUE)
+  data_max <- max(channels_merge$avg_diff, na.rm = TRUE)
+  # Determine the maximum absolute value
+  #max_abs_value <- max(abs(c(data_min, data_max)))
+  max_abs_value <- range(channels_merge$avg_diff, channels_merge$min_diff, channels_merge$max_diff)
+  
+  palette <- colorNumeric(
+    palette = colorRampPalette(brewer.pal(11, input$color_palette))(100),
+    domain = c(-max_abs_value, max_abs_value))
+  
+  leafletProxy("map") |>
+    clearShapes() |>
+    clearControls() |>
+    addPolylines(data = gates,
+                 label = ~name,
+                 labelOptions = labelOptions(permanent = TRUE,
+                                             direction = "auto",
+                                             opacity = 1,
+                                             textOnly = FALSE,
+                                             style = list(
+                                               "font-weight" = "bold",
+                                               "font-size" = "14px",
+                                               "color" = "black",
+                                               "background" = "white",
+                                               "border" = "1px solid black",
+                                               "padding" = "3px"
+                                             ))) |>
+    addPolylines(
+      data = channels_merge,
+      weight = 7,
+      opacity = 1,
+      label = ~as.character(id),
+      color = ~palette(get(current_stat)),
+      popup = ~sprintf(
+        "<div style='font-family: Arial; font-size: 12px;'>
+        <table style='width: 100%%; border-collapse: collapse; margin: 10px 0;'>
+          <tr style='background-color: #f8f9fa;'>
+            <td style='padding: 8px; border: 1px solid #dee2e6;'><strong>ID</strong></td>
+            <td style='padding: 8px; border: 1px solid #dee2e6;'>%s</td>
+          </tr>
+          <tr style='background-color: #f8f9fa;'>
+            <td style='padding: 8px; border: 1px solid #dee2e6;'><strong>%s</strong></td>
+            <td style='padding: 8px; border: 1px solid #dee2e6;'>%.2f ft</td>
+          </tr>
+        </table>
+      </div>",
+      as.character(id), current_legend_title, get(current_stat)
+      ),
+      labelOptions = labelOptions(
+        style = list(
+          "font-weight" = "bold",
+          padding = "3px 8px"
+        ),
+        textsize = "15px",
+        direction = "auto"
+      )
+    ) |>
+    addLegend(
+      position = "bottomright",
+      pal = palette,
+      values = channels_merge[[current_stat]],
+      title = current_legend_title,
+      opacity = 1
+    )
+})
+
+leafletOutput("map", width = "100%", height = "100%")
 
 ```
 

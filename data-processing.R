@@ -79,7 +79,7 @@ final_summary <- channels |>
 
 # Pull in All H5 data for Comparison  -------------------------------------
 read_files <- function(files, dir, scenario_txt) {
-   all_data <- files |>
+  all_data <- files |>
     map_dfr(~ {
       file_path <- file.path(dir, .x)
       tmp <- read_csv(file_path)
@@ -232,8 +232,18 @@ comparison <- comparison %>%
     max_diff = .data[[paste0("daily_max_", scenarios[1])]] - .data[[paste0("daily_max_", scenarios[2])]]
   )
 
-comparison |>
-  mutate(channel_id = as.numeric(channel_id)) |>
-  rename(id = channel_id) |>
+comp_join <- comparison |>
+  select(-contains("daily")) |>
+  mutate(month = lubridate::month(date),
+         day = lubridate::day(date),
+         year = lubridate::year(date)) |>
   left_join(channels) |>
   glimpse()
+
+tmp <- comp_join |>
+  #group_by(day, month, year, id) |>
+  filter(day == 1,
+         month == 5,
+         year == 2021)
+
+View(tmp)

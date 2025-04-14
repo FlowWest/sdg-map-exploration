@@ -4,7 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     theme: readable
     orientation: rows
-  font_family: "Roboto"
+  font_family: "Roboto Mono"
   google_fonts: true
 runtime: shiny
 ---
@@ -22,10 +22,12 @@ library(RColorBrewer)
 # Read in scenarios 
 combined_data_b1sa <- readRDS("data/combined_data_b1sa.RDS")
 combined_data_b1sb <- readRDS("data/combined_data_b1sb.RDS")
+combined_data_b1sa_stage <- readRDS("data/combined_STAGE_data_b1sa.rds")
+combined_data_b1sb_stage <- readRDS("data/combined_STAGE_data_b1sb.rds")
 
 all_data <- list(
-  b1sa = combined_data_b1sa,
-  b1sb = combined_data_b1sb
+  b1sa = list(EC = combined_data_b1sa, Stage = combined_data_b1sa_stage),
+  b1sb = list(EC = combined_data_b1sb, Stage = combined_data_b1sb_stage)
 )
 
 # read in channel geometry
@@ -180,13 +182,15 @@ which_variable <- reactive({input$which_variable})
 
 scenario_1_data <- reactive({
   req(scenario_1())
-  all_data[[scenario_1()]] |> 
+  req(which_variable())
+  all_data[[scenario_1()]][[which_variable()]] |> 
     as.data.frame() 
 })
 
 scenario_2_data <- reactive({
   req(scenario_2())
-  all_data[[scenario_2()]] |> 
+  req(which_variable())
+  all_data[[scenario_2()]][[which_variable()]] |> 
     as.data.frame() 
 })
 

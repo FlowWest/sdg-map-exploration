@@ -93,6 +93,7 @@ read_files <- function(files, dir, scenario_txt) {
   return(all_data)
 }
 
+
 dir_baseline <- 'data-raw/hdf5_exports/baseline'
 files <- list.files(dir_baseline)
 
@@ -248,3 +249,63 @@ tmp <- comp_join |>
   sf::st_as_sf()
 
 View(tmp)
+
+
+# New Stage Baselines ---------------------------
+
+b1sa_baseline_path <- 'data-raw/b1sa-stage-nodes/'
+b1sa_files <- list.files(dir_baseline)
+
+b1sb_baseline_path <- 'data-raw/b1sb-stage-nodes/'
+b1sb_files <- list.files(b1sb_baseline_path)
+
+
+
+combined_b1sa <- read_files(b1sa_files, b1sa_baseline_path, "B1Sa")
+combined_b1sb <- read_files(b1sb_files, b1sb_baseline_path, "B1Sb")
+
+
+write_rds(combined_b1sa, "data/combined_STAGE_data_b1sa.rds")
+write_rds(combined_b1sb, "data/combined_STAGE_data_b1sb.rds")
+
+
+comparison <- combined_b1sa |>
+  bind_rows(combined_b1sb) |>
+  janitor::clean_names() |>
+  pivot_wider(names_from = scenario,
+              values_from = c(daily_avg, daily_min, daily_max)) |>
+  na.omit() |>
+  mutate(avg_diff = daily_avg_FPV2Mb - daily_avg_baseline,
+         min_diff = daily_min_FPV2Mb - daily_min_baseline,
+         max_diff = daily_max_FPV2Mb - daily_max_baseline) |>
+  select(-c(daily_avg_FPV2Mb, daily_avg_baseline, daily_max_FPV2Mb, daily_min_baseline,
+            daily_max_FPV2Mb, daily_max_baseline, daily_min_FPV2Mb)) |>
+  glimpse()
+
+channels <- readRDS('data/channels_shp.RDS')
+channels_with_names <- readRDS('data/channels_with_numbers_stage.RDS') |>
+  rename(channel_id = chan_no) |>
+  select(name, channel_id)
+
+channels_with_data <- channels |>
+  rename(channel_id = id) |>
+  left_join(comparison) |>
+  #left_join(channels_with_names) |> # there are a few duplicates so leaving out for now
+  mutate(month = month(date),
+         year = year(date),
+         day = day(date)) |>
+  filter(month %in% 5:11)
+
+saveRDS(channels_with_data, 'data/channels_with_numbers.RDS')
+
+channels_monthly_data <- channels_with_data |>
+  ungroup() |>
+  group_by(month, channel_id, year) |>
+  summarize(min_diff = min(min_diff),
+            max_diff = max(max_diff),
+            avg_diff = mean(avg_diff))
+
+saveRDS(channels_monthly_data, 'data/channels_monthly_data.RDS')
+
+
+

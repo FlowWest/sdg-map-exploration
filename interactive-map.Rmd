@@ -49,11 +49,11 @@ gates <- channels |>
 
 ## Inputs {.sidebar data-width="500"}
 
-<!-- The scenario `FPV2Mb` is compared to the baseline, with  -->
+<!-- <!-- The scenario `FPV2Mb` is compared to the baseline, with  --> 
 
-Difference values calculated as *scenario 1 - scenario 2*.
+<!-- Difference values calculated as *scenario 1 - scenario 2*. -->
 
-Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries. 
+<!-- Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries.  -->
 
 ```{r}
 tabsetPanel(
@@ -141,9 +141,9 @@ tabsetPanel(
                                          id == 205 ~ "DGL")) |>
                  select(name, min_diff, avg_diff, max_diff) |>
                  mutate(
-                   min_diff = round(min_diff, 1),
-                   avg_diff = round(avg_diff, 1),
-                   max_diff = round(max_diff, 1)
+                   min_diff = round(min_diff, 3),
+                   avg_diff = round(avg_diff, 3),
+                   max_diff = round(max_diff, 3)
                  )
              }, options = list(
                searching = FALSE,
@@ -166,7 +166,10 @@ tabsetPanel(
              
              sliderInput(inputId = "base_opacity", label = "Select base layer opacity", 
                          min = .5, max = 1, step = .1, value = 1)
-           ))
+           )),
+  tabPanel("Data Processing",
+           tags$iframe(src = "about.html", height = "100%", width = "100%", frameborder = "0")
+           )
 )
 
 
@@ -313,7 +316,7 @@ stat <- reactive({
 unit <- reactive({
   switch(input$which_variable,
          "Stage" = "feet",
-         "EC" = "TBD")
+         "EC" = "umhos/cm") # TODO: double check this
 })
 
 legend_title <- reactive({

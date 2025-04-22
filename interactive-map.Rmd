@@ -353,8 +353,10 @@ output$map <- renderLeaflet({
     addLayersControl(
       baseGroups = c("Satellite", "Street", "Topographic"),
       position = "topright",
-      options = layersControlOptions(collapsed = FALSE)
-    )
+      options = layersControlOptions(collapsed = FALSE) 
+    ) |> 
+    addScaleBar(position = "topright")
+  
 })
 
 observe({

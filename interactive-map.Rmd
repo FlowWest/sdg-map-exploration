@@ -4,7 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     theme: readable
     orientation: rows
-  font_family: "Roboto"
+  font_family: "Roboto Mono"
   google_fonts: true
 runtime: shiny
 ---
@@ -19,37 +19,41 @@ library(RColorBrewer)
 ```
 
 ```{r}
-# daily data with channels - depth
-channels <- readRDS('data/channels_with_numbers.RDS') |> 
-  sf::st_transform(crs = 4326) |> 
-  na.omit()
+# Read in scenarios 
+combined_data_b1sa <- readRDS("data/combined_data_b1sa.RDS")
+combined_data_b1sb <- readRDS("data/combined_data_b1sb.RDS")
+combined_data_b1sa_stage <- readRDS("data/combined_STAGE_data_b1sa.rds")
+combined_data_b1sb_stage <- readRDS("data/combined_STAGE_data_b1sb.rds")
 
-# monthly data with channels - depth
-channels_monthly <- readRDS('data/channels_monthly_data.RDS') |> 
-  sf::st_transform(crs = 4326)
+all_data <- list(
+  b1sa = list(EC = combined_data_b1sa, Stage = combined_data_b1sa_stage),
+  b1sb = list(EC = combined_data_b1sb, Stage = combined_data_b1sb_stage)
+)
 
-# ec data monthly 
-channels_ec_monthly <- readRDS('data/channels_with_monthly_ec_b1sa.RDS') |> 
+# read in channel geometry
+channels <- readRDS("data/channels_shp.RDS") |> 
   sf::st_transform(crs = 4326)
 
 bbox <- st_bbox(channels)
 
 gates <- channels |> 
-  filter(channel_id %in% c(71, 128, 205)) |> 
-  mutate(name = case_when(channel_id == 71 ~ "OLD", 
-                          channel_id == 128 ~ "MHO", 
-                          channel_id == 205 ~ "DGL")) |> 
-  select(channel_id, geometry, name) |> 
+  filter(id %in% c(71, 128, 205)) |> 
+  mutate(name = case_when(id == 71 ~ "OLD", 
+                          id == 128 ~ "MHO", 
+                          id == 205 ~ "DGL")) |> 
+  select(id, geometry, name) |> 
   distinct() 
+
 ```
+
 
 ## Inputs {.sidebar data-width="500"}
 
-<!-- The scenario `FPV2Mb` is compared to the baseline, with  -->
+<!-- <!-- The scenario `FPV2Mb` is compared to the baseline, with  --> 
 
-Difference values calculated as *scenario 1 - scenario 2*.
+<!-- Difference values calculated as *scenario 1 - scenario 2*. -->
 
-Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries. 
+<!-- Each difference (min, max, mean) represents a comparison of the summarized values for a specific year, month with an option to summarize by month or day. Daily summaries are the summary of daily 5-minute increments. Monthly summarize represent the min, max, or mean of the daily summaries.  -->
 
 ```{r}
 tabsetPanel(
@@ -58,26 +62,37 @@ tabsetPanel(
            tagList(
              tags$div(
                style = "display: inline-block; vertical-align: top; width: 45%;",
-               selectInput("scen1", tags$strong("Scenario 1:"), choices = c("B1sa", "B1sb"))
+               selectInput("scen1", tags$strong("Scenario 1:"), 
+                           choices = c("B1sa" = "b1sa", 
+                                       "B1sb" = 'b1sb'),
+                           selected = "b1sa")
              ),
              tags$div(
                style = "display: inline-block; vertical-align: top; width: 45%; margin-left: 5%;",
-               selectInput("scen2", tags$strong("Scenario 2:"), choices = c("B1sa", "B1sb"))
+               selectInput("scen2", tags$strong("Scenario 2:"), 
+                           choices = c("B1sa" = "b1sa", 
+                                       "B1sb" = 'b1sb'),
+                           selected = "b1sb")
              ),
+             
+             uiOutput("warning_message"),
+             uiOutput("warning_message_2"),
              
              selectInput(inputId = "which_variable",
                          label = tags$strong("What Variable"),
-                         choices = c("Stage", "EC")),
+                         choices = c("Stage", "EC"),
+                         selected = "EC"),
              
              radioButtons(inputId = "which_agg", 
                           label = HTML("<strong>How to Summarize Data</strong>"),
-                          choices = c("Daily", "Monthly")),
+                          choices = c("Daily", "Monthly"),
+                          selected = "Daily"),
              
              selectInput(
                inputId = "which_year",
                label = HTML("<strong>Select Year</strong>"),
-               choices = 2020:2023,
-               selected = 2020
+               choices = c(2020:2023), # TODO: this could be better and dynamically based off of the scenarios 
+               selected = 2021
              ),
              
              
@@ -99,7 +114,7 @@ tabsetPanel(
                  inputId = "which_day", 
                  label = tags$strong("Select Day"),
                  min = 1, 
-                 max = 31, 
+                 max = 30, # TODO: need to troubleshoot the 31 days so it doesn't crash
                  value = 1,
                  step = 1, 
                  ticks = TRUE, 
@@ -116,30 +131,27 @@ tabsetPanel(
              ), 
              
              output$data_table <- renderDT({
-               req(filtered_data()) 
+               req(filtered_data())
                
-               filtered_data() |> 
-                 st_set_geometry(NULL) |>  
-                 filter(channel_id %in% c(71, 128, 205)) |> 
-                 mutate(name = case_when(channel_id == 71 ~ "OLD", 
-                                         channel_id == 128 ~ "MHO", 
-                                         channel_id == 205 ~ "DGL")) |> 
-                 select(name, min_diff, avg_diff, max_diff) |> 
+               filtered_data() |>
+                 st_set_geometry(NULL) |>
+                 filter(id %in% c(71, 128, 205)) |>
+                 mutate(name = case_when(id == 71 ~ "OLD",
+                                         id == 128 ~ "MHO",
+                                         id == 205 ~ "DGL")) |>
+                 select(name, min_diff, avg_diff, max_diff) |>
                  mutate(
-                   min_diff = round(min_diff, 1), 
-                   avg_diff = round(avg_diff, 1),
-                   max_diff = round(max_diff, 1)
-                 ) 
+                   min_diff = round(min_diff, 3),
+                   avg_diff = round(avg_diff, 3),
+                   max_diff = round(max_diff, 3)
+                 )
              }, options = list(
-               searching = FALSE,  
-               lengthChange = FALSE,  
-               paging = FALSE, 
+               searching = FALSE,
+               lengthChange = FALSE,
+               paging = FALSE,
                info = FALSE,
-               scrollY = "150" 
+               scrollY = "150"
              )),
-             
-             # Output the data table
-             #DTOutput("data_table")
              
            )
            
@@ -148,11 +160,19 @@ tabsetPanel(
   ), 
   tabPanel("Settings", 
            tagList(
-             selectInput("color_palette", label="Select Color Palette", choices = c("Red to Blue"="RdBu", "Purple to Orange"="PuOr", "Purple to Green"="PRGn", "Red Yellow Green"="RdYlGn")), 
+             selectInput("color_palette", 
+                         label="Select Color Palette", 
+                         choices = c("Red to Blue"="RdBu", "Purple to Orange"="PuOr", "Purple to Green"="PRGn", "Red Yellow Green"="RdYlGn")), 
              
              sliderInput(inputId = "base_opacity", label = "Select base layer opacity", 
                          min = .5, max = 1, step = .1, value = 1)
-           ))
+           )),
+  tabPanel("Data Processing",
+           div(style = "height: calc(100vh - 50px);",
+               tags$iframe(src = "about.html", style = "width: 100%; height: 100%; border: none;")
+           )
+  )
+  
 )
 
 
@@ -162,21 +182,126 @@ tabsetPanel(
 ## Column {data-width="100" data-height="100"}
 
 ```{r}
+scenario_1 <- reactive({input$scen1})
+scenario_2 <- reactive({input$scen2})
+which_variable <- reactive({input$which_variable})
+
+scenario_1_data <- reactive({
+  req(scenario_1())
+  req(which_variable())
+  all_data[[scenario_1()]][[which_variable()]] |> 
+    as.data.frame() 
+})
+
+scenario_2_data <- reactive({
+  req(scenario_2())
+  req(which_variable())
+  all_data[[scenario_2()]][[which_variable()]] |> 
+    as.data.frame() 
+})
+
+output$warning_message <- renderUI({
+  if (input$scen1 == input$scen2) {
+    div(style = "color: darkred; font-weight: bold; font-size: 0.9em;",
+        "Please select two different scenarios for comparison.")
+  } else {
+    NULL
+  }
+})
+
+output$warning_message_2 <- renderUI({
+  if (nrow(filtered_data()) == 0) {
+    div(style = "color: darkred; font-weight: bold; font-size: 0.9em;",
+        "There is no data for selected year and month; please select another")
+  } else {
+    NULL
+  }
+})
+
+scenario_comparison <- reactive({
+  req(c(input$scen1, input$scen2))
+  
+  validate(
+    need(input$scen1 != input$scen2, "Please select two different scenarios for comparison.")
+  )
+  
+  
+  comparison <- bind_rows(scenario_1_data(), scenario_2_data()) |> 
+    janitor::clean_names() |> 
+    pivot_wider(
+      names_from = scenario,
+      values_from = c(daily_avg, daily_min, daily_max)
+    ) |> 
+    na.omit() 
+  
+  scenario_cols <- names(comparison)[grepl("^daily_avg_", names(comparison))]
+  scenarios <- sub("^daily_avg_", "", scenario_cols)
+  
+  comparison <- comparison  |> 
+    mutate(
+      avg_diff = .data[[paste0("daily_avg_", scenarios[1])]] - .data[[paste0("daily_avg_", scenarios[2])]],
+      min_diff = .data[[paste0("daily_min_", scenarios[1])]] - .data[[paste0("daily_min_", scenarios[2])]],
+      max_diff = .data[[paste0("daily_max_", scenarios[1])]] - .data[[paste0("daily_max_", scenarios[2])]]
+    ) 
+  
+  print("this is the return: ")
+  comp_return <- comparison |>
+    select(-contains("daily")) |> 
+    mutate(month = lubridate::month(date),
+           day = lubridate::day(date),
+           year = lubridate::year(date)) |> 
+    left_join(channels) |>
+    glimpse()
+  
+  return(comp_return)
+})
+
+observe({
+  req(input$scen1, input$scen2)
+  
+  comp <- scenario_comparison()
+  
+})
+
+
+```
+
+```{r}
 filtered_data <- reactive({
-  req(input$which_month, input$which_year)
+  req(input$which_month, input$which_year, scenario_comparison())
+  
+  print(input$which_month)
+  print(input$which_year)
+  print(input$which_day)
+  
   
   if(input$which_agg == "Monthly") {
-    agg <- channels_monthly |>
+    print("monthly")
+    agg <- scenario_comparison() |>
       filter(month == input$which_month, 
-             year == input$which_year) 
+             year == input$which_year) |> 
+      group_by(month, id, year, geometry) |>
+      summarize(min_diff = min(min_diff),
+                max_diff = max(max_diff),
+                avg_diff = mean(avg_diff)) |> 
+      sf::st_as_sf() |> 
+      ungroup()
+    
+    print(head(agg))
   } else {
-    agg <- channels |> 
+    print("daily")
+    agg <- scenario_comparison() |> 
       filter(day == input$which_day,
              month == input$which_month,
-             year == input$which_year)
+             year == input$which_year)  |> 
+      st_as_sf()
   }
   
-  agg |> glimpse()
+  validate(
+    need(nrow(agg) > 0, "There is no data for selected year and month; please select another")
+  )
+  
+  
   
   return(agg)
 })
@@ -191,13 +316,20 @@ stat <- reactive({
   
 })
 
+unit <- reactive({
+  switch(input$which_variable,
+         "Stage" = "Stage (feet)",
+         "EC" = "EC (\u03bcmhos/cm)") 
+})
+
 legend_title <- reactive({
   req(input$which_stat)
   
   switch(input$which_stat, 
-         "Min" = 'Min Stage Diff (ft)', 
-         "Max" = 'Max Stage Diff (ft)',
-         "Mean" = 'Mean Stage Diff (ft)')
+         "Min" = paste0('Difference in ', unit(), '<br>Minimums for Chosen Scenarios')  , 
+         "Max" = paste0('Difference in ', unit(), '<br>Maximums for Chosen Scenarios'), 
+         "Mean" = paste0('Difference in ', unit(), '<br>Means for Chosen Scenarios')
+  ) 
   
 })
 
@@ -221,12 +353,16 @@ output$map <- renderLeaflet({
     addLayersControl(
       baseGroups = c("Satellite", "Street", "Topographic"),
       position = "topright",
-      options = layersControlOptions(collapsed = FALSE)
-    )
+      options = layersControlOptions(collapsed = FALSE) 
+    ) |> 
+    addScaleBar(position = "topright")
+  
 })
 
 observe({
   req(filtered_data())
+  
+  print(head(filtered_data()))
   
   channels_merge <- filtered_data()
   current_stat <- stat()
@@ -236,7 +372,6 @@ observe({
   data_min <- min(channels_merge$avg_diff, na.rm = TRUE)
   data_max <- max(channels_merge$avg_diff, na.rm = TRUE)
   # Determine the maximum absolute value
-  #max_abs_value <- max(abs(c(data_min, data_max)))
   max_abs_value <- range(channels_merge$avg_diff, channels_merge$min_diff, channels_merge$max_diff)
   
   palette <- colorNumeric(
@@ -244,27 +379,27 @@ observe({
     domain = c(-max_abs_value, max_abs_value))
   
   leafletProxy("map") |>
-    clearShapes() |> 
-    clearControls() |> 
-    addPolylines(data = gates, 
+    clearShapes() |>
+    clearControls() |>
+    addPolylines(data = gates,
                  label = ~name,
-                 labelOptions = labelOptions(permanent = TRUE,  
-                                             direction = "auto",  
-                                             opacity = 1,  
-                                             textOnly = FALSE,  
+                 labelOptions = labelOptions(permanent = TRUE,
+                                             direction = "auto",
+                                             opacity = 1,
+                                             textOnly = FALSE,
                                              style = list(
-                                               "font-weight" = "bold",  
-                                               "font-size" = "14px",  
+                                               "font-weight" = "bold",
+                                               "font-size" = "14px",
                                                "color" = "black",
                                                "background" = "white",
                                                "border" = "1px solid black",
                                                "padding" = "3px"
-                                             ))) |> 
+                                             ))) |>
     addPolylines(
       data = channels_merge,
       weight = 7,
       opacity = 1,
-      label = ~as.character(channel_id),
+      label = ~as.character(id),
       color = ~palette(get(current_stat)),
       popup = ~sprintf(
         "<div style='font-family: Arial; font-size: 12px;'>
@@ -275,11 +410,11 @@ observe({
           </tr>
           <tr style='background-color: #f8f9fa;'>
             <td style='padding: 8px; border: 1px solid #dee2e6;'><strong>%s</strong></td>
-            <td style='padding: 8px; border: 1px solid #dee2e6;'>%.2f ft</td>
+            <td style='padding: 8px; border: 1px solid #dee2e6;'>%.2f</td> 
           </tr>
         </table>
       </div>",
-      as.character(channel_id), current_legend_title, get(current_stat)
+      as.character(id), current_legend_title, get(current_stat)
       ),
       labelOptions = labelOptions(
         style = list(
@@ -289,7 +424,7 @@ observe({
         textsize = "15px",
         direction = "auto"
       )
-    ) |> 
+    ) |>
     addLegend(
       position = "bottomright",
       pal = palette,

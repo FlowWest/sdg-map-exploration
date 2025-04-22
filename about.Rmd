@@ -1,0 +1,26 @@
+---
+title: "Data Processing"
+output: 
+  html_document:
+    theme: flatly
+date: ""
+---
+
+**About the Data**
+
+The data shown in the map is exported from H5 files that are scenarios of the DSM models of the South Delta Gates. Within the Map Controls, the user is able to compare the difference between two scenarios at the daily or monthly time step. 
+
+Difference values calculated as: *scenario 1 - scenario 2*
+
+Mapped data is in NAV83.
+
+**Daily Data**
+
+H5 exports are at the 5-or-15 minute increments. Daily values are reported as the minimum, maximum, and means of the daily H5 exported data and therefore the difference reported in the map is the difference between scenario 1 and scenario 2 daily values. It is important to note that this means the daily minimum or maximums could be occurring at different times through any given day. 
+
+**Monthly Data**
+
+The monthly data is calculated as the minimum, maximum, or mean of the daily summaries. Therefore, it is possible that the values compared between the scenarios are from different days within the same month. 
+
+
+

@@ -168,7 +168,7 @@ tabsetPanel(
                          min = .5, max = 1, step = .1, value = 1)
            )),
   tabPanel("Data Processing",
-           div(style = "position: absolute; top: 0; bottom: 0; left: 0; right: 0;",
+           div(style = "height: calc(100vh - 50px);",
                tags$iframe(src = "about.html", style = "width: 100%; height: 100%; border: none;")
            )
   )
@@ -318,17 +318,17 @@ stat <- reactive({
 
 unit <- reactive({
   switch(input$which_variable,
-         "Stage" = "feet",
-         "EC" = "umhos/cm") # TODO: double check this
+         "Stage" = "Stage (feet)",
+         "EC" = "EC (\u03bcmhos/cm)") 
 })
 
 legend_title <- reactive({
   req(input$which_stat)
   
   switch(input$which_stat, 
-         "Min" = paste0('Min Diff (', unit(), ")"), 
-         "Max" = paste0('Max Diff (', unit(), ")"), 
-         "Mean" = paste0('Mean Diff (', unit(), ")")
+         "Min" = paste0('Difference in ', unit(), '<br>Minimums for Chosen Scenarios')  , 
+         "Max" = paste0('Difference in ', unit(), '<br>Maximums for Chosen Scenarios'), 
+         "Mean" = paste0('Difference in ', unit(), '<br>Means for Chosen Scenarios')
   ) 
   
 })
